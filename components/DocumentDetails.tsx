@@ -3,14 +3,16 @@ import React, { useState, useEffect } from 'react';
 import { Document } from '../types';
 import { getFileIcon } from '../constants';
 import { Download, History, Share2, Trash2, Info, User, Calendar, Database, Shield, Pencil, Check, X as CloseIcon, Hash } from 'lucide-react';
+import { Language, t } from '../translations';
 
 interface Props {
   doc: Document;
   onRename: (id: string, newName: string) => void;
   onTrash: () => void;
+  lang: Language;
 }
 
-const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash }) => {
+const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, lang }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [tempName, setTempName] = useState(doc.name);
 
@@ -68,13 +70,13 @@ const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash }) => {
               <Hash size={12} /> {doc.contractNumber}
             </p>
           )}
-          <p className="text-sm text-slate-500 mt-1 uppercase tracking-wider font-semibold">Version {doc.currentVersion}</p>
+          <p className="text-sm text-slate-500 mt-1 uppercase tracking-wider font-semibold">{t(lang, 'version')} {doc.currentVersion}</p>
         </div>
         
         <div className="flex items-center justify-center gap-2 pt-2">
-          <ActionButton icon={<Download size={18} />} label="Download" />
-          <ActionButton icon={<Share2 size={18} />} label="Share" />
-          <ActionButton icon={<Trash2 size={18} />} label="Delete" variant="danger" onClick={onTrash} />
+          <ActionButton icon={<Download size={18} />} label={t(lang, 'download')} />
+          <ActionButton icon={<Share2 size={18} />} label={t(lang, 'share')} />
+          <ActionButton icon={<Trash2 size={18} />} label={t(lang, 'delete')} variant="danger" onClick={onTrash} />
         </div>
       </div>
 
@@ -82,19 +84,19 @@ const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash }) => {
       <div className="flex-1 overflow-y-auto p-6 space-y-8">
         <section className="space-y-4">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <Info size={14} /> Details
+            <Info size={14} /> {t(lang, 'details')}
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            <InfoItem icon={<User size={14} />} label="Owner" value="Alex Rivera" />
-            <InfoItem icon={<Database size={14} />} label="Size" value={doc.size} />
-            <InfoItem icon={<Calendar size={14} />} label="Created" value="Oct 12, 2023" />
-            <InfoItem icon={<Shield size={14} />} label="Security" value="Encrypted" />
+            <InfoItem icon={<User size={14} />} label={lang === 'en' ? "Owner" : "ባለቤት"} value="System Admin" />
+            <InfoItem icon={<Database size={14} />} label={t(lang, 'size')} value={doc.size} />
+            <InfoItem icon={<Calendar size={14} />} label={t(lang, 'modified')} value={new Date(doc.lastModified).toLocaleDateString()} />
+            <InfoItem icon={<Shield size={14} />} label={lang === 'en' ? "Security" : "ደህንነት"} value="AES-256" />
           </div>
         </section>
 
         <section className="space-y-4">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <History size={14} /> Version History
+            <History size={14} /> {t(lang, 'history')}
           </h3>
           <div className="space-y-3">
             {doc.versions.map((v, idx) => (
@@ -104,22 +106,18 @@ const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash }) => {
                   <span className="text-[10px] text-slate-400 font-medium">{new Date(v.updatedAt).toLocaleDateString()}</span>
                 </div>
                 <p className="text-xs text-slate-600 line-clamp-1">{v.changeNote}</p>
-                <div className="mt-2 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-                   <span className="text-[10px] text-slate-500 font-medium">By {v.author}</span>
-                   <button className="text-[10px] font-bold text-blue-600 hover:underline">Restore</button>
-                </div>
               </div>
             ))}
           </div>
         </section>
 
         <section className="space-y-4 pb-8">
-           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tags</h3>
+           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t(lang, 'tags')}</h3>
            <div className="flex flex-wrap gap-2">
               {doc.tags.map(tag => (
                 <span key={tag} className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium border border-slate-200">#{tag}</span>
               ))}
-              <button className="px-2 py-1 bg-white border border-dashed border-slate-300 text-slate-400 rounded-lg text-xs font-medium hover:border-blue-400 hover:text-blue-500 transition-all">+ Add Tag</button>
+              <button className="px-2 py-1 bg-white border border-dashed border-slate-300 text-slate-400 rounded-lg text-xs font-medium hover:border-blue-400 hover:text-blue-500 transition-all">+ {lang === 'en' ? 'Add' : 'አክል'}</button>
            </div>
         </section>
       </div>

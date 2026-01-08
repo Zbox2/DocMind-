@@ -6,9 +6,7 @@ import {
   TrendingUp, 
   Users, 
   Clock, 
-  Folder, 
   Star, 
-  ChevronRight, 
   MoreHorizontal,
   FileText,
   PieChart,
@@ -17,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Document, Folder as FolderType, AuditLog, User } from '../types';
 import { getFileIcon } from '../constants';
+import { Language, t } from '../translations';
 
 interface DashboardProps {
   docs: Document[];
@@ -25,24 +24,25 @@ interface DashboardProps {
   user: User;
   onSelectDoc: (doc: Document) => void;
   onSelectFolder: (id: string) => void;
+  lang: Language;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ docs, folders, auditLogs, user, onSelectDoc, onSelectFolder }) => {
-  const recentDocs = docs.slice(0, 4);
+const Dashboard: React.FC<DashboardProps> = ({ docs, folders, auditLogs, user, onSelectDoc, onSelectFolder, lang }) => {
   const starredDocs = docs.filter(d => d.isStarred).slice(0, 3);
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-500">
-      {/* Hero Welcome */}
       <section className="relative overflow-hidden bg-slate-900 rounded-3xl p-8 text-white shadow-2xl border border-slate-800">
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-xs font-bold border border-blue-500/30 uppercase tracking-widest">
-              <ShieldCheck size={14} /> System Online
+              <ShieldCheck size={14} /> {t(lang, 'online')}
             </div>
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Good morning, {user.name.split(' ')[0]}</h1>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
+              {t(lang, 'goodMorning')}, {user.name.split(' ')[0]}
+            </h1>
             <p className="text-slate-400 max-w-lg">
-              You have managed <span className="text-white font-semibold">{docs.length} records</span> across your kebeles this month.
+              {t(lang, 'welcomeBack')}!
             </p>
           </div>
           <div className="flex gap-3">
@@ -57,57 +57,47 @@ const Dashboard: React.FC<DashboardProps> = ({ docs, folders, auditLogs, user, o
              ))}
           </div>
         </div>
-        {/* Abstract background shapes */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl -mr-32 -mt-32" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl -ml-24 -mb-24" />
       </section>
 
-      {/* Analytics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard 
-          label="Total Records" 
+          label={t(lang, 'totalRecords')} 
           value={docs.length} 
-          trend="+12% this week" 
+          trend="+12%" 
           icon={<File className="text-blue-600" />} 
           chart={<MiniSparkline color="#2563eb" />}
         />
         <MetricCard 
-          label="Storage Efficiency" 
+          label={t(lang, 'storageEff')} 
           value="42%" 
-          trend="Optimized via SQL" 
+          trend="SQL" 
           icon={<Database className="text-indigo-600" />} 
           chart={<MiniSparkline color="#4f46e5" />}
         />
         <MetricCard 
-          label="Active Users" 
+          label={t(lang, 'activeUsers')} 
           value="24" 
-          trend="Currently online" 
+          trend="Live" 
           icon={<Users className="text-emerald-600" />} 
           chart={<MiniSparkline color="#10b981" />}
         />
         <MetricCard 
-          label="Sync Health" 
+          label={t(lang, 'syncHealth')} 
           value="99.9%" 
-          trend="Always consistent" 
+          trend="Stable" 
           icon={<TrendingUp className="text-amber-600" />} 
           chart={<MiniSparkline color="#d97706" />}
         />
       </div>
 
-      {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Recent & Pinned Section */}
         <div className="lg:col-span-2 space-y-8">
-          
-          {/* Pinned Section */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <Star size={20} className="text-amber-400 fill-amber-400" />
-                Pinned Records
+                {t(lang, 'pinnedRecords')}
               </h3>
-              <button className="text-sm font-semibold text-blue-600 hover:text-blue-700">View all</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {starredDocs.map(doc => (
@@ -120,93 +110,64 @@ const Dashboard: React.FC<DashboardProps> = ({ docs, folders, auditLogs, user, o
                     <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-blue-50 transition-colors">
                       {getFileIcon(doc.type)}
                     </div>
-                    <button className="text-slate-300 hover:text-slate-600"><MoreHorizontal size={16} /></button>
                   </div>
                   <p className="font-bold text-slate-800 truncate mb-1">{doc.name}</p>
-                  <p className="text-xs text-slate-500 uppercase tracking-tighter">{doc.contractNumber || 'No Contract #'}</p>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* Activity Breakdown Chart (Visual Placeholder) */}
           <section className="bg-white p-6 border border-slate-200 rounded-3xl shadow-sm space-y-6">
              <div className="flex items-center justify-between">
                 <h3 className="font-bold flex items-center gap-2 text-slate-800">
                   <PieChart size={20} className="text-indigo-600" />
-                  Document Distribution
+                  {t(lang, 'docDist')}
                 </h3>
-                <select className="text-xs font-bold text-slate-500 bg-slate-50 border-none rounded-lg focus:ring-0">
-                  <option>Last 30 Days</option>
-                  <option>Last Year</option>
-                </select>
              </div>
-             
              <div className="flex flex-col md:flex-row items-center gap-12">
                 <div className="relative w-40 h-40">
                   <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
                     <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="4"></circle>
                     <circle cx="18" cy="18" r="16" fill="none" className="stroke-blue-600" strokeWidth="4" strokeDasharray="60, 100"></circle>
-                    <circle cx="18" cy="18" r="16" fill="none" className="stroke-indigo-600" strokeWidth="4" strokeDasharray="25, 100" strokeDashoffset="-60"></circle>
-                    <circle cx="18" cy="18" r="16" fill="none" className="stroke-emerald-600" strokeWidth="4" strokeDasharray="15, 100" strokeDashoffset="-85"></circle>
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-2xl font-black text-slate-800">{docs.length}</span>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">Files</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">{lang === 'en' ? 'Files' : 'ሰነዶች'}</span>
                   </div>
                 </div>
-                
                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                  <ChartLegend color="bg-blue-600" label="PDF Documents" value="60%" />
-                  <ChartLegend color="bg-indigo-600" label="Word Records" value="25%" />
-                  <ChartLegend color="bg-emerald-600" label="Spreadsheets" value="15%" />
-                  <ChartLegend color="bg-slate-200" label="Others" value="0%" />
+                  <ChartLegend color="bg-blue-600" label="PDF" value="60%" />
+                  <ChartLegend color="bg-indigo-600" label="Word" value="25%" />
+                  <ChartLegend color="bg-emerald-600" label="Excel" value="15%" />
                 </div>
              </div>
           </section>
-
         </div>
 
-        {/* Audit Pulse (Activity) */}
         <div className="space-y-8">
            <section className="bg-white p-6 border border-slate-200 rounded-3xl shadow-sm h-full">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold flex items-center gap-2 text-slate-800">
                   <Clock size={20} className="text-blue-600" />
-                  System Audit Pulse
+                  {t(lang, 'auditPulse')}
                 </h3>
-                <ArrowUpRight size={18} className="text-slate-300" />
               </div>
-              
               <div className="space-y-6 relative">
-                {/* Timeline line */}
                 <div className="absolute left-[15px] top-2 bottom-2 w-px bg-slate-100" />
-                
-                {auditLogs.map((log, i) => (
+                {auditLogs.slice(0, 5).map((log) => (
                   <div key={log.id} className="relative flex items-start gap-4 pl-0 group">
-                    <div className={`mt-1.5 w-8 h-8 rounded-full border-4 border-white flex items-center justify-center shrink-0 z-10 shadow-sm ${
-                      log.action === 'Updated' ? 'bg-amber-100 text-amber-600' : 
-                      log.action === 'Created' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {log.action === 'Updated' ? <TrendingUp size={14} /> : <FileText size={14} />}
+                    <div className="mt-1.5 w-8 h-8 rounded-full border-4 border-white bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 z-10">
+                      <FileText size={14} />
                     </div>
                     <div>
-                      <p className="text-sm text-slate-600 leading-tight">
-                        <span className="font-bold text-slate-900">{log.user}</span> {log.action.toLowerCase()} record
-                      </p>
-                      <p className="font-semibold text-slate-800 text-xs mt-0.5 group-hover:text-blue-600 transition-colors">{log.docName}</p>
-                      <p className="text-[10px] text-slate-400 mt-1 font-medium">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Just now</p>
+                      <p className="text-xs text-slate-600 font-bold">{log.user}</p>
+                      <p className="text-xs text-slate-400">{log.action}</p>
                     </div>
                   </div>
                 ))}
               </div>
-              
-              <button className="w-full mt-8 py-3 bg-slate-50 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors border border-slate-100">
-                Download Full Log Report
-              </button>
            </section>
         </div>
-
       </div>
     </div>
   );
@@ -224,7 +185,7 @@ const MetricCard = ({ label, value, trend, icon, chart }: { label: string, value
       </div>
     </div>
     <div className="flex items-end justify-between">
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</p>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
       <div className="w-20 h-8 opacity-40 group-hover:opacity-100 transition-opacity">
         {chart}
       </div>
@@ -234,13 +195,7 @@ const MetricCard = ({ label, value, trend, icon, chart }: { label: string, value
 
 const MiniSparkline = ({ color }: { color: string }) => (
   <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
-    <path 
-      d="M0 35 Q 20 5, 40 25 T 80 15 L 100 30" 
-      fill="none" 
-      stroke={color} 
-      strokeWidth="4" 
-      strokeLinecap="round" 
-    />
+    <path d="M0 35 Q 20 5, 40 25 T 80 15 L 100 30" fill="none" stroke={color} strokeWidth="4" strokeLinecap="round" />
   </svg>
 );
 

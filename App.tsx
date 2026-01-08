@@ -22,7 +22,8 @@ import {
   Wifi,
   WifiOff,
   Users as UsersIcon,
-  LogOut
+  LogOut,
+  Languages
 } from 'lucide-react';
 import { MOCK_DOCS, MOCK_FOLDERS, MOCK_USER, MOCK_AUDIT_LOGS, getFileIcon } from './constants';
 import { Document, Folder, FileType, AuditLog, User } from './types';
@@ -33,8 +34,10 @@ import Dashboard from './components/Dashboard';
 import LoginPage from './components/LoginPage';
 import UserManagement from './components/UserManagement';
 import { db } from './db';
+import { Language, t } from './translations';
 
 const App: React.FC = () => {
+  const [lang, setLang] = useState<Language>(() => (localStorage.getItem('documind_lang') as Language) || 'en');
   const [activeTab, setActiveTab] = useState<'files' | 'dashboard' | 'starred' | 'trash' | 'system' | 'users'>('dashboard');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -52,6 +55,11 @@ const App: React.FC = () => {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [tempFolderName, setTempFolderName] = useState('');
 
+  // Persist language
+  useEffect(() => {
+    localStorage.setItem('documind_lang', lang);
+  }, [lang]);
+
   // Initialize DB and Load Data
   useEffect(() => {
     const initData = async () => {
@@ -61,17 +69,22 @@ const App: React.FC = () => {
       const savedLogs = await db.getAll<AuditLog>('auditLogs');
       const savedUsers = await db.getAll<User>('users');
 
-      // Setup initial users if none exist
+      let finalUsers = savedUsers;
+
       if (savedUsers.length === 0) {
         const initialUsers: User[] = [
           { id: 'u-admin', name: 'System Admin', email: 'admin@documind.pro', password: 'admin123', avatar: 'https://picsum.photos/seed/admin/100/100', role: 'Admin', status: 'Active' },
           { id: 'u-user', name: 'Standard User', email: 'user@documind.pro', password: 'user123', avatar: 'https://picsum.photos/seed/user/100/100', role: 'User', status: 'Active' }
         ];
         initialUsers.forEach(u => db.save('users', u));
-        setAllUsers(initialUsers);
+        finalUsers = initialUsers;
       } else {
-        setAllUsers(savedUsers);
+        // Explicitly ensure the u-admin is active on every startup to prevent lockout
+        finalUsers = savedUsers.map(u => u.id === 'u-admin' ? { ...u, status: 'Active' as const } : u);
+        const adminUser = finalUsers.find(u => u.id === 'u-admin');
+        if (adminUser) db.save('users', adminUser);
       }
+      setAllUsers(finalUsers);
 
       if (savedDocs.length === 0 && savedFolders.length === 0) {
         setDocs(MOCK_DOCS);
@@ -86,21 +99,17 @@ const App: React.FC = () => {
         setAuditLogs(savedLogs);
       }
 
-      // Check for persistent session
       const savedSession = localStorage.getItem('documind_session');
       if (savedSession) {
         const userId = JSON.parse(savedSession).id;
-        const user = savedUsers.find(u => u.id === userId) || (savedUsers.length === 0 ? { id: 'u-admin' } : null);
-        if (user && (user as User).status === 'Active') {
-          setCurrentUser(user as User);
+        const user = finalUsers.find(u => u.id === userId);
+        if (user && user.status === 'Active') {
+          setCurrentUser(user);
         }
       }
-
       setDbReady(true);
     };
-
     initData();
-
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
@@ -127,14 +136,12 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
   };
 
-  // Fixed: Added handleFolderClick to navigate to specific folders and switch tabs
   const handleFolderClick = (id: string) => {
     setSelectedFolderId(id);
     setActiveTab('files');
     setSelectedDoc(null);
   };
 
-  // Fixed: Added startRenameFolder to initiate folder renaming logic
   const startRenameFolder = (e: React.MouseEvent, folder: Folder) => {
     setEditingFolderId(folder.id);
     setTempFolderName(folder.name);
@@ -151,8 +158,6 @@ const App: React.FC = () => {
     setAllUsers(updatedUsers);
     const user = updatedUsers.find(u => u.id === id);
     if (user) await db.save('users', user);
-    
-    // If deactivated current user, log them out
     if (id === currentUser?.id && updates.status === 'Deactivated') {
       handleLogout();
     }
@@ -253,13 +258,13 @@ const App: React.FC = () => {
     <div className="h-screen w-full flex items-center justify-center bg-white">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-medium font-bold uppercase text-[10px] tracking-widest">Initializing Secure System...</p>
+        <p className="text-slate-500 font-medium font-bold uppercase text-[10px] tracking-widest">System Bootup...</p>
       </div>
     </div>
   );
 
   if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
+    return <LoginPage onLogin={handleLogin} lang={lang} />;
   }
 
   const isAdmin = currentUser.role === 'Admin';
@@ -278,28 +283,28 @@ const App: React.FC = () => {
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
           <NavItem 
             icon={<LayoutDashboard size={20} />} 
-            label="Dashboard" 
+            label={t(lang, 'dashboard')} 
             active={activeTab === 'dashboard'} 
             collapsed={!sidebarOpen}
             onClick={() => setActiveTab('dashboard')} 
           />
           <NavItem 
             icon={<File size={20} />} 
-            label="All Documents" 
+            label={t(lang, 'allDocs')} 
             active={activeTab === 'files' && !selectedFolderId} 
             collapsed={!sidebarOpen}
             onClick={() => { setActiveTab('files'); setSelectedFolderId(null); }} 
           />
           <NavItem 
             icon={<Star size={20} />} 
-            label="Starred" 
+            label={t(lang, 'starred')} 
             active={activeTab === 'starred'} 
             collapsed={!sidebarOpen}
             onClick={() => { setActiveTab('starred'); setSelectedFolderId(null); }} 
           />
           <NavItem 
             icon={<Trash2 size={20} />} 
-            label="Trash" 
+            label={t(lang, 'trash')} 
             active={activeTab === 'trash'} 
             collapsed={!sidebarOpen}
             onClick={() => { setActiveTab('trash'); setSelectedFolderId(null); }} 
@@ -307,17 +312,17 @@ const App: React.FC = () => {
 
           {isAdmin && (
             <div className="pt-4 pb-2">
-               {sidebarOpen && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Administration</p>}
+               {sidebarOpen && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Admin</p>}
                <NavItem 
                   icon={<UsersIcon size={20} />} 
-                  label="User Management" 
+                  label={t(lang, 'userMgmt')} 
                   active={activeTab === 'users'} 
                   collapsed={!sidebarOpen}
                   onClick={() => setActiveTab('users')} 
                 />
                <NavItem 
                   icon={<Server size={20} />} 
-                  label="System Architecture" 
+                  label={t(lang, 'sysArch')} 
                   active={activeTab === 'system'} 
                   collapsed={!sidebarOpen}
                   onClick={() => setActiveTab('system')} 
@@ -326,7 +331,7 @@ const App: React.FC = () => {
           )}
           
           <div className="pt-4 pb-2">
-             {sidebarOpen && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Kebeles</p>}
+             {sidebarOpen && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t(lang, 'kebele')}</p>}
              {sidebarOpen && folders.map(f => (
                <div key={f.id} className="relative group">
                  {editingFolderId === f.id ? (
@@ -366,22 +371,33 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-slate-200 space-y-4">
+          <button 
+            onClick={() => setLang(lang === 'en' ? 'am' : 'en')}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all text-xs font-black uppercase tracking-widest text-slate-600"
+          >
+            <div className="flex items-center gap-2">
+              <Languages size={14} />
+              {sidebarOpen && <span>{lang === 'en' ? 'Amharic' : 'English'}</span>}
+            </div>
+            {sidebarOpen && <span className="text-blue-600">{lang === 'en' ? 'EN' : 'AM'}</span>}
+          </button>
+
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-colors ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
             {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
-            {sidebarOpen && <span>{isOnline ? 'Cloud Sync Online' : 'Local Edge Mode'}</span>}
+            {sidebarOpen && <span>{isOnline ? t(lang, 'online') : t(lang, 'localMode')}</span>}
           </div>
           <div className="flex items-center gap-3 group">
             <img src={currentUser.avatar} alt="User" className="w-8 h-8 rounded-full border border-slate-200" />
             {sidebarOpen && (
               <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-bold truncate text-slate-900">{currentUser.name}</p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">{currentUser.role}</p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">{t(lang, currentUser.role === 'Admin' ? 'admin' : 'user')}</p>
               </div>
             )}
             <button 
               onClick={handleLogout}
               className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-              title="Logout"
+              title={t(lang, 'logOut')}
             >
               <LogOut size={16} />
             </button>
@@ -400,7 +416,7 @@ const App: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
                 type="text" 
-                placeholder="Search local records..." 
+                placeholder={t(lang, 'searchPlaceholder')} 
                 className="w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -413,7 +429,7 @@ const App: React.FC = () => {
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-blue-100"
             >
               <Plus size={18} />
-              <span>Add Record</span>
+              <span>{t(lang, 'addRecord')}</span>
             </button>
           </div>
         </header>
@@ -427,38 +443,31 @@ const App: React.FC = () => {
               user={currentUser} 
               onSelectDoc={setSelectedDoc}
               onSelectFolder={handleFolderClick}
+              lang={lang}
             />
           ) : activeTab === 'system' && isAdmin ? (
-            <SystemDesign />
+            <SystemDesign lang={lang} />
           ) : activeTab === 'users' && isAdmin ? (
-            <UserManagement users={allUsers} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} />
+            <UserManagement users={allUsers} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} lang={lang} />
           ) : (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-black text-slate-900 tracking-tight capitalize">
-                    {selectedFolderId ? activeFolderName : activeTab}
+                    {selectedFolderId ? activeFolderName : t(lang, activeTab === 'files' ? 'allDocs' : activeTab as any)}
                   </h1>
-                  <p className="text-sm text-slate-500 mt-1">
-                    {selectedFolderId ? 'Persistent Kebele Records' : 'Unified Document Workspace'}
-                  </p>
                 </div>
-                {!isOnline && (
-                  <div className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black border border-amber-100 uppercase tracking-widest">
-                    Offline Protection Enabled
-                  </div>
-                )}
               </div>
 
               <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <tr>
-                      <th className="px-6 py-4">Record Name</th>
-                      <th className="px-6 py-4">Contract #</th>
-                      <th className="px-6 py-4">Modified</th>
-                      <th className="px-6 py-4">Size</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
+                      <th className="px-6 py-4">{t(lang, 'name')}</th>
+                      <th className="px-6 py-4">{t(lang, 'contractNo')}</th>
+                      <th className="px-6 py-4">{t(lang, 'modified')}</th>
+                      <th className="px-6 py-4">{t(lang, 'size')}</th>
+                      <th className="px-6 py-4 text-right">{t(lang, 'actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -526,12 +535,12 @@ const App: React.FC = () => {
       {selectedDoc && (
         <aside className="w-96 bg-white border-l border-slate-200 overflow-y-auto flex flex-col shrink-0 animate-in slide-in-from-right duration-300">
           <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 sticky top-0 bg-white z-10">
-            <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">Metadata Panel</h3>
+            <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">{t(lang, 'details')}</h3>
             <button onClick={() => setSelectedDoc(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
               <X size={20} />
             </button>
           </div>
-          <DocumentDetails doc={selectedDoc} onRename={handleRenameDoc} onTrash={() => moveToTrash(selectedDoc.id)} />
+          <DocumentDetails doc={selectedDoc} onRename={handleRenameDoc} onTrash={() => moveToTrash(selectedDoc.id)} lang={lang} />
         </aside>
       )}
 
@@ -542,6 +551,7 @@ const App: React.FC = () => {
           initialFolderId={selectedFolderId}
           onUpload={handleUpload} 
           onClose={() => setIsUploading(false)} 
+          lang={lang}
         />
       )}
     </div>
