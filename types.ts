@@ -40,6 +40,8 @@ export interface Document {
   isStarred: boolean;
   isTrashed: boolean;
   contractNumber?: string;
+  previewUrl?: string;
+  previewContent?: string;
 }
 
 export interface Folder {
@@ -53,7 +55,7 @@ export interface AuditLog {
   id: string;
   docId: string;
   docName: string;
-  action: 'Created' | 'Updated' | 'Deleted' | 'Shared' | 'Downloaded';
+  action: 'Created' | 'Updated' | 'Deleted' | 'Shared' | 'Downloaded' | 'Previewed';
   user: string;
   timestamp: string;
 }

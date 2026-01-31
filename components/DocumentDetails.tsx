@@ -1,18 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import { Document } from '../types';
+import { Document, FileType } from '../types';
 import { getFileIcon } from '../constants';
-import { Download, History, Share2, Trash2, Info, User, Calendar, Database, Shield, Pencil, Check, X as CloseIcon, Hash } from 'lucide-react';
+import { Download, History, Share2, Trash2, Info, User, Calendar, Database, Shield, Pencil, Check, X as CloseIcon, Hash, Eye, Maximize } from 'lucide-react';
 import { Language, t } from '../translations';
 
 interface Props {
   doc: Document;
   onRename: (id: string, newName: string) => void;
   onTrash: () => void;
+  onPreview: () => void;
   lang: Language;
 }
 
-const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, lang }) => {
+const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, onPreview, lang }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [tempName, setTempName] = useState(doc.name);
 
@@ -28,12 +29,30 @@ const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, lang }) => {
     setIsRenaming(false);
   };
 
+  const isImage = doc.type === FileType.IMG;
+  const imageUrl = doc.previewUrl || doc.previewContent;
+
   return (
     <div className="flex flex-col h-full">
       {/* Overview */}
       <div className="p-6 text-center space-y-4 border-b border-slate-100">
-        <div className="inline-flex p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm mx-auto">
-          {getFileIcon(doc.type)}
+        <div className="relative group mx-auto inline-block">
+          {isImage && imageUrl ? (
+            <div 
+              className="w-40 h-40 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm overflow-hidden cursor-pointer relative"
+              onClick={onPreview}
+            >
+              <img src={imageUrl} alt={doc.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <Maximize className="text-white" size={24} />
+              </div>
+            </div>
+          ) : (
+            <div className="inline-flex p-6 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
+              {/* Fix: Cast icon element to ReactElement<any> to allow setting 'size' via cloneElement */}
+              {React.cloneElement(getFileIcon(doc.type) as React.ReactElement<any>, { size: 32 })}
+            </div>
+          )}
         </div>
         
         <div className="space-y-1">
@@ -74,6 +93,7 @@ const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, lang }) => {
         </div>
         
         <div className="flex items-center justify-center gap-2 pt-2">
+          <ActionButton icon={<Eye size={18} />} label="Preview" onClick={onPreview} />
           <ActionButton icon={<Download size={18} />} label={t(lang, 'download')} />
           <ActionButton icon={<Share2 size={18} />} label={t(lang, 'share')} />
           <ActionButton icon={<Trash2 size={18} />} label={t(lang, 'delete')} variant="danger" onClick={onTrash} />

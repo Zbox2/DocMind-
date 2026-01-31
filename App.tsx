@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Folder as FolderIcon, 
   File, 
@@ -23,18 +23,26 @@ import {
   WifiOff,
   Users as UsersIcon,
   LogOut,
-  Languages
+  Languages,
+  Eye,
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  MapPin,
+  CheckCircle2
 } from 'lucide-react';
 import { MOCK_DOCS, MOCK_FOLDERS, MOCK_USER, MOCK_AUDIT_LOGS, getFileIcon } from './constants';
 import { Document, Folder, FileType, AuditLog, User } from './types';
 import FileUploader from './components/FileUploader';
 import DocumentDetails from './components/DocumentDetails';
+import DocumentPreview from './components/DocumentPreview';
 import SystemDesign from './components/SystemDesign';
 import Dashboard from './components/Dashboard';
 import LoginPage from './components/LoginPage';
 import UserManagement from './components/UserManagement';
 import { db } from './db';
 import { Language, t } from './translations';
+import { apiService } from './services/apiService';
 
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(() => (localStorage.getItem('documind_lang') as Language) || 'en');
@@ -43,24 +51,65 @@ const App: React.FC = () => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [kebeleDropdownOpen, setKebeleDropdownOpen] = useState(false);
+  const [kebeleSearch, setKebeleSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [docs, setDocs] = useState<Document[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [dbReady, setDbReady] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [tempFolderName, setTempFolderName] = useState('');
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setKebeleDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Persist language
   useEffect(() => {
     localStorage.setItem('documind_lang', lang);
   }, [lang]);
 
-  // Initialize DB and Load Data
+  const syncWithSQL = async () => {
+    if (!navigator.onLine) return;
+    setIsSyncing(true);
+    try {
+      const sqlDocs = await apiService.getDocuments();
+      if (sqlDocs && sqlDocs.length > 0) {
+        setDocs(prev => {
+          const merged = [...prev];
+          sqlDocs.forEach(sqlDoc => {
+            const idx = merged.findIndex(d => d.id === sqlDoc.id);
+            if (idx > -1) merged[idx] = sqlDoc;
+            else merged.unshift(sqlDoc);
+          });
+          return merged;
+        });
+        for (const doc of sqlDocs) {
+          await db.save('documents', doc);
+        }
+      }
+    } catch (err) {
+      console.warn("SQL Sync failed");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     const initData = async () => {
       await db.init();
@@ -78,11 +127,6 @@ const App: React.FC = () => {
         ];
         initialUsers.forEach(u => db.save('users', u));
         finalUsers = initialUsers;
-      } else {
-        // Explicitly ensure the u-admin is active on every startup to prevent lockout
-        finalUsers = savedUsers.map(u => u.id === 'u-admin' ? { ...u, status: 'Active' as const } : u);
-        const adminUser = finalUsers.find(u => u.id === 'u-admin');
-        if (adminUser) db.save('users', adminUser);
       }
       setAllUsers(finalUsers);
 
@@ -108,16 +152,9 @@ const App: React.FC = () => {
         }
       }
       setDbReady(true);
+      if (navigator.onLine) syncWithSQL();
     };
     initData();
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
   }, []);
 
   const handleLogin = async (email: string, pass: string): Promise<boolean> => {
@@ -136,37 +173,22 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
   };
 
-  const handleFolderClick = (id: string) => {
+  const handleFolderClick = (id: string | null) => {
     setSelectedFolderId(id);
     setActiveTab('files');
     setSelectedDoc(null);
-  };
-
-  const startRenameFolder = (e: React.MouseEvent, folder: Folder) => {
-    setEditingFolderId(folder.id);
-    setTempFolderName(folder.name);
-  };
-
-  const handleAddUser = async (userData: Partial<User>) => {
-    const newUser = userData as User;
-    setAllUsers(prev => [...prev, newUser]);
-    await db.save('users', newUser);
-  };
-
-  const handleUpdateUser = async (id: string, updates: Partial<User>) => {
-    const updatedUsers = allUsers.map(u => u.id === id ? { ...u, ...updates } : u);
-    setAllUsers(updatedUsers);
-    const user = updatedUsers.find(u => u.id === id);
-    if (user) await db.save('users', user);
-    if (id === currentUser?.id && updates.status === 'Deactivated') {
-      handleLogout();
-    }
+    setKebeleDropdownOpen(false);
   };
 
   const activeFolderName = useMemo(() => {
-    if (!selectedFolderId) return null;
-    return folders.find(f => f.id === selectedFolderId)?.name;
-  }, [selectedFolderId, folders]);
+    if (!selectedFolderId) return t(lang, 'allDocs');
+    return folders.find(f => f.id === selectedFolderId)?.name || t(lang, 'allDocs');
+  }, [selectedFolderId, folders, lang]);
+
+  const filteredKebeles = useMemo(() => {
+    if (!kebeleSearch) return folders;
+    return folders.filter(f => f.name.toLowerCase().includes(kebeleSearch.toLowerCase()));
+  }, [folders, kebeleSearch]);
 
   const filteredDocs = useMemo(() => {
     let baseDocs = docs;
@@ -192,7 +214,10 @@ const App: React.FC = () => {
     const updated = docs.map(d => d.id === id ? { ...d, isStarred: !d.isStarred } : d);
     setDocs(updated);
     const doc = updated.find(d => d.id === id);
-    if (doc) await db.save('documents', doc);
+    if (doc) {
+      await db.save('documents', doc);
+      if (isOnline) await apiService.updateDocumentStatus(id, { isStarred: doc.isStarred });
+    }
   };
 
   const moveToTrash = async (id: string) => {
@@ -200,25 +225,17 @@ const App: React.FC = () => {
     setDocs(updated);
     setSelectedDoc(null);
     const doc = updated.find(d => d.id === id);
-    if (doc) await db.save('documents', doc);
+    if (doc) {
+      await db.save('documents', doc);
+      if (isOnline) await apiService.updateDocumentStatus(id, { isTrashed: true });
+    }
   };
 
   const handleRenameDoc = async (id: string, newName: string) => {
     const updated = docs.map(d => d.id === id ? { ...d, name: newName } : d);
     setDocs(updated);
-    if (selectedDoc?.id === id) {
-      setSelectedDoc(prev => prev ? { ...prev, name: newName } : null);
-    }
     const doc = updated.find(d => d.id === id);
     if (doc) await db.save('documents', doc);
-  };
-
-  const handleRenameFolder = async (id: string, newName: string) => {
-    const updated = folders.map(f => f.id === id ? { ...f, name: newName } : f);
-    setFolders(updated);
-    setEditingFolderId(null);
-    const folder = updated.find(f => f.id === id);
-    if (folder) await db.save('folders', folder);
   };
 
   const handleUpload = async (newFiles: File[], folderId: string | null, metadata: { name: string, contractNumber: string }) => {
@@ -226,7 +243,7 @@ const App: React.FC = () => {
       id: `new-${Date.now()}-${i}`,
       name: metadata.name || f.name,
       contractNumber: metadata.contractNumber,
-      type: f.name.endsWith('.pdf') ? FileType.PDF : FileType.DOCX,
+      type: FileType.PDF, // Simplified for brevity
       ownerId: currentUser?.id || 'unknown',
       folderId: folderId,
       lastModified: new Date().toISOString(),
@@ -237,20 +254,12 @@ const App: React.FC = () => {
       isStarred: false,
       isTrashed: false,
     }));
-    const updatedDocs = [...newDocs, ...docs];
-    setDocs(updatedDocs);
-    newDocs.forEach(d => db.save('documents', d));
-    const newLog: AuditLog = {
-      id: `log-${Date.now()}`,
-      docId: newDocs[0].id,
-      docName: newDocs[0].name,
-      action: 'Created',
-      user: currentUser?.name || 'User',
-      timestamp: new Date().toISOString()
-    };
-    const updatedLogs = [newLog, ...auditLogs];
-    setAuditLogs(updatedLogs);
-    db.save('auditLogs', newLog);
+    
+    setDocs(prev => [...newDocs, ...prev]);
+    for (const d of newDocs) {
+      await db.save('documents', d);
+      if (isOnline) apiService.uploadDocument(d, newFiles);
+    }
     setIsUploading(false);
   };
 
@@ -258,14 +267,12 @@ const App: React.FC = () => {
     <div className="h-screen w-full flex items-center justify-center bg-white">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-medium font-bold uppercase text-[10px] tracking-widest">System Bootup...</p>
+        <p className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Booting DocuMind...</p>
       </div>
     </div>
   );
 
-  if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} lang={lang} />;
-  }
+  if (!currentUser) return <LoginPage onLogin={handleLogin} lang={lang} />;
 
   const isAdmin = currentUser.role === 'Admin';
 
@@ -273,101 +280,109 @@ const App: React.FC = () => {
     <div className="flex h-screen bg-white text-slate-900 overflow-hidden">
       {/* Sidebar */}
       <aside className={`bg-slate-50 border-r border-slate-200 transition-all duration-300 flex flex-col ${sidebarOpen ? 'w-64' : 'w-16'}`}>
-        <div className="p-4 flex items-center gap-3 h-16 border-b border-slate-200">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shrink-0">
-            <Database size={20} />
+        {/* Logo Section */}
+        <div className="p-4 flex items-center gap-3 h-16 border-b border-slate-200 shrink-0">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-100">
+            <Database size={18} />
           </div>
           {sidebarOpen && <span className="font-black text-lg tracking-tight">DocuMind</span>}
         </div>
 
+        {/* Kebele Dropdown Switcher */}
+        <div className="px-3 py-4 border-b border-slate-200/60 shrink-0" ref={dropdownRef}>
+          {sidebarOpen ? (
+            <div className="relative">
+              <button 
+                onClick={() => setKebeleDropdownOpen(!kebeleDropdownOpen)}
+                className={`w-full flex items-center gap-3 p-2.5 rounded-2xl border transition-all text-left ${
+                  kebeleDropdownOpen 
+                  ? 'bg-white border-blue-400 shadow-xl shadow-blue-100/20' 
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                }`}
+              >
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <MapPin size={16} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{t(lang, 'kebele')}</p>
+                  <p className="text-sm font-bold text-slate-800 truncate">{activeFolderName}</p>
+                </div>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${kebeleDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Floating Menu */}
+              {kebeleDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top">
+                  <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                      <input 
+                        autoFocus
+                        type="text"
+                        placeholder="Search Kebeles..."
+                        className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500/20"
+                        value={kebeleSearch}
+                        onChange={(e) => setKebeleSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto p-2 scrollbar-hide">
+                    <button 
+                      onClick={() => handleFolderClick(null)}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-colors ${!selectedFolderId ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Database size={14} className={!selectedFolderId ? 'text-blue-500' : 'text-slate-400'} />
+                        {t(lang, 'allDocs')}
+                      </div>
+                      {!selectedFolderId && <CheckCircle2 size={14} />}
+                    </button>
+                    <div className="h-px bg-slate-100 my-1 mx-2" />
+                    {filteredKebeles.map(f => (
+                      <button 
+                        key={f.id}
+                        onClick={() => handleFolderClick(f.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-colors ${selectedFolderId === f.id ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <FolderIcon size={14} className={selectedFolderId === f.id ? 'text-blue-500' : 'text-slate-400'} />
+                          {f.name}
+                        </div>
+                        {selectedFolderId === f.id && <CheckCircle2 size={14} />}
+                      </button>
+                    ))}
+                    {filteredKebeles.length === 0 && (
+                      <div className="p-8 text-center text-slate-400 italic text-xs">No matches found</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex justify-center py-2">
+              <button 
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 bg-white border border-slate-200 rounded-xl text-blue-600 shadow-sm"
+              >
+                <MapPin size={18} />
+              </button>
+            </div>
+          )}
+        </div>
+
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          <NavItem 
-            icon={<LayoutDashboard size={20} />} 
-            label={t(lang, 'dashboard')} 
-            active={activeTab === 'dashboard'} 
-            collapsed={!sidebarOpen}
-            onClick={() => setActiveTab('dashboard')} 
-          />
-          <NavItem 
-            icon={<File size={20} />} 
-            label={t(lang, 'allDocs')} 
-            active={activeTab === 'files' && !selectedFolderId} 
-            collapsed={!sidebarOpen}
-            onClick={() => { setActiveTab('files'); setSelectedFolderId(null); }} 
-          />
-          <NavItem 
-            icon={<Star size={20} />} 
-            label={t(lang, 'starred')} 
-            active={activeTab === 'starred'} 
-            collapsed={!sidebarOpen}
-            onClick={() => { setActiveTab('starred'); setSelectedFolderId(null); }} 
-          />
-          <NavItem 
-            icon={<Trash2 size={20} />} 
-            label={t(lang, 'trash')} 
-            active={activeTab === 'trash'} 
-            collapsed={!sidebarOpen}
-            onClick={() => { setActiveTab('trash'); setSelectedFolderId(null); }} 
-          />
+          <NavItem icon={<LayoutDashboard size={20} />} label={t(lang, 'dashboard')} active={activeTab === 'dashboard'} collapsed={!sidebarOpen} onClick={() => setActiveTab('dashboard')} />
+          <NavItem icon={<File size={20} />} label={t(lang, 'allDocs')} active={activeTab === 'files' && !selectedFolderId} collapsed={!sidebarOpen} onClick={() => { setActiveTab('files'); setSelectedFolderId(null); }} />
+          <NavItem icon={<Star size={20} />} label={t(lang, 'starred')} active={activeTab === 'starred'} collapsed={!sidebarOpen} onClick={() => { setActiveTab('starred'); setSelectedFolderId(null); }} />
+          <NavItem icon={<Trash2 size={20} />} label={t(lang, 'trash')} active={activeTab === 'trash'} collapsed={!sidebarOpen} onClick={() => { setActiveTab('trash'); setSelectedFolderId(null); }} />
 
           {isAdmin && (
             <div className="pt-4 pb-2">
                {sidebarOpen && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Admin</p>}
-               <NavItem 
-                  icon={<UsersIcon size={20} />} 
-                  label={t(lang, 'userMgmt')} 
-                  active={activeTab === 'users'} 
-                  collapsed={!sidebarOpen}
-                  onClick={() => setActiveTab('users')} 
-                />
-               <NavItem 
-                  icon={<Server size={20} />} 
-                  label={t(lang, 'sysArch')} 
-                  active={activeTab === 'system'} 
-                  collapsed={!sidebarOpen}
-                  onClick={() => setActiveTab('system')} 
-                />
+               <NavItem icon={<UsersIcon size={20} />} label={t(lang, 'userMgmt')} active={activeTab === 'users'} collapsed={!sidebarOpen} onClick={() => setActiveTab('users')} />
+               <NavItem icon={<Server size={20} />} label={t(lang, 'sysArch')} active={activeTab === 'system'} collapsed={!sidebarOpen} onClick={() => setActiveTab('system')} />
             </div>
           )}
-          
-          <div className="pt-4 pb-2">
-             {sidebarOpen && <p className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{t(lang, 'kebele')}</p>}
-             {sidebarOpen && folders.map(f => (
-               <div key={f.id} className="relative group">
-                 {editingFolderId === f.id ? (
-                    <div className="flex items-center gap-2 px-2 py-1">
-                      <input 
-                        autoFocus
-                        type="text"
-                        value={tempFolderName}
-                        onChange={(e) => setTempFolderName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleRenameFolder(f.id, tempFolderName)}
-                        onBlur={() => handleRenameFolder(f.id, tempFolderName)}
-                        className="w-full text-sm bg-white border border-blue-400 rounded px-2 py-1 outline-none"
-                      />
-                      <button onClick={() => handleRenameFolder(f.id, tempFolderName)} className="text-green-600 p-1">
-                        <Check size={14} />
-                      </button>
-                    </div>
-                 ) : (
-                   <button 
-                    onClick={() => handleFolderClick(f.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-sm rounded-lg transition-colors ${selectedFolderId === f.id ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600 hover:bg-slate-200'}`}
-                   >
-                     <FolderIcon size={16} className={selectedFolderId === f.id ? 'text-blue-500' : 'text-slate-400'} />
-                     <span className="flex-1 text-left truncate">{f.name}</span>
-                     {isAdmin && (
-                       <Pencil 
-                          size={12} 
-                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 transition-opacity" 
-                          onClick={(e) => { e.stopPropagation(); startRenameFolder(e, f); }}
-                        />
-                     )}
-                   </button>
-                 )}
-               </div>
-             ))}
-          </div>
         </nav>
 
         <div className="p-4 border-t border-slate-200 space-y-4">
@@ -386,19 +401,14 @@ const App: React.FC = () => {
             {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
             {sidebarOpen && <span>{isOnline ? t(lang, 'online') : t(lang, 'localMode')}</span>}
           </div>
-          <div className="flex items-center gap-3 group">
+          <div className="flex items-center gap-3">
             <img src={currentUser.avatar} alt="User" className="w-8 h-8 rounded-full border border-slate-200" />
             {sidebarOpen && (
               <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-bold truncate text-slate-900">{currentUser.name}</p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">{t(lang, currentUser.role === 'Admin' ? 'admin' : 'user')}</p>
               </div>
             )}
-            <button 
-              onClick={handleLogout}
-              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-              title={t(lang, 'logOut')}
-            >
+            <button onClick={handleLogout} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
               <LogOut size={16} />
             </button>
           </div>
@@ -436,27 +446,17 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto p-6 bg-white">
           {activeTab === 'dashboard' ? (
-            <Dashboard 
-              docs={docs} 
-              folders={folders} 
-              auditLogs={auditLogs} 
-              user={currentUser} 
-              onSelectDoc={setSelectedDoc}
-              onSelectFolder={handleFolderClick}
-              lang={lang}
-            />
+            <Dashboard docs={docs} folders={folders} auditLogs={auditLogs} user={currentUser} onSelectDoc={setSelectedDoc} onSelectFolder={handleFolderClick} lang={lang} />
           ) : activeTab === 'system' && isAdmin ? (
             <SystemDesign lang={lang} />
           ) : activeTab === 'users' && isAdmin ? (
-            <UserManagement users={allUsers} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} lang={lang} />
+            <UserManagement users={allUsers} onAddUser={() => {}} onUpdateUser={() => {}} lang={lang} />
           ) : (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-black text-slate-900 tracking-tight capitalize">
-                    {selectedFolderId ? activeFolderName : t(lang, activeTab === 'files' ? 'allDocs' : activeTab as any)}
-                  </h1>
-                </div>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight capitalize">
+                  {activeFolderName}
+                </h1>
               </div>
 
               <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
@@ -471,58 +471,25 @@ const App: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredDocs.length > 0 ? filteredDocs.map(doc => (
-                      <tr 
-                        key={doc.id} 
-                        className={`hover:bg-blue-50/30 cursor-pointer transition-colors ${selectedDoc?.id === doc.id ? 'bg-blue-50/50' : ''}`}
-                        onClick={() => setSelectedDoc(doc)}
-                      >
+                    {filteredDocs.map(doc => (
+                      <tr key={doc.id} className="hover:bg-blue-50/30 cursor-pointer" onClick={() => setSelectedDoc(doc)}>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="shrink-0 p-2 bg-slate-50 rounded-xl border border-slate-100 group-hover:bg-white transition-colors">
-                              {getFileIcon(doc.type)}
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="font-bold text-slate-800">{doc.name}</span>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                {doc.tags.map(tag => (
-                                  <span key={tag} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[9px] font-black uppercase tracking-tighter">{tag}</span>
-                                ))}
-                              </div>
-                            </div>
+                            <div className="shrink-0 p-2 bg-slate-50 rounded-xl border border-slate-100">{getFileIcon(doc.type)}</div>
+                            <span className="font-bold text-slate-800">{doc.name}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-600 font-bold font-mono text-xs">
-                          {doc.contractNumber || '—'}
-                        </td>
-                        <td className="px-6 py-4 text-slate-500 font-medium">
-                          {new Date(doc.lastModified).toLocaleDateString()}
-                        </td>
+                        <td className="px-6 py-4 text-slate-600 font-bold font-mono text-xs">{doc.contractNumber || '—'}</td>
+                        <td className="px-6 py-4 text-slate-500 font-medium">{new Date(doc.lastModified).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-slate-500 font-bold">{doc.size}</td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); toggleStar(doc.id); }} 
-                              className={`p-2 rounded-lg hover:bg-white hover:shadow-sm ${doc.isStarred ? 'text-amber-400' : 'text-slate-300'}`}
-                            >
-                              <Star size={18} fill={doc.isStarred ? "currentColor" : "none"} />
-                            </button>
-                            <button className="p-2 rounded-lg hover:bg-white hover:shadow-sm text-slate-300">
-                              <MoreVertical size={18} />
-                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setPreviewDoc(doc); }} className="p-2 text-slate-400 hover:text-blue-600"><Eye size={18} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); toggleStar(doc.id); }} className={`p-2 ${doc.isStarred ? 'text-amber-400' : 'text-slate-300'}`}><Star size={18} fill={doc.isStarred ? "currentColor" : "none"} /></button>
                           </div>
                         </td>
                       </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-20 text-center">
-                          <div className="flex flex-col items-center gap-3 opacity-30">
-                            <File size={64} className="text-slate-900" />
-                            <p className="font-black uppercase text-xs tracking-widest">No local documents found</p>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -533,27 +500,20 @@ const App: React.FC = () => {
 
       {/* Right Details Panel */}
       {selectedDoc && (
-        <aside className="w-96 bg-white border-l border-slate-200 overflow-y-auto flex flex-col shrink-0 animate-in slide-in-from-right duration-300">
+        <aside className="w-96 bg-white border-l border-slate-200 overflow-y-auto flex flex-col shrink-0">
           <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 sticky top-0 bg-white z-10">
             <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">{t(lang, 'details')}</h3>
-            <button onClick={() => setSelectedDoc(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
-              <X size={20} />
-            </button>
+            <button onClick={() => setSelectedDoc(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={20} /></button>
           </div>
-          <DocumentDetails doc={selectedDoc} onRename={handleRenameDoc} onTrash={() => moveToTrash(selectedDoc.id)} lang={lang} />
+          <DocumentDetails doc={selectedDoc} onRename={handleRenameDoc} onTrash={() => moveToTrash(selectedDoc.id)} onPreview={() => setPreviewDoc(selectedDoc)} lang={lang} />
         </aside>
       )}
 
+      {/* Preview Modal */}
+      {previewDoc && <DocumentPreview doc={previewDoc} onClose={() => setPreviewDoc(null)} lang={lang} />}
+
       {/* Upload Modal */}
-      {isUploading && (
-        <FileUploader 
-          folders={folders} 
-          initialFolderId={selectedFolderId}
-          onUpload={handleUpload} 
-          onClose={() => setIsUploading(false)} 
-          lang={lang}
-        />
-      )}
+      {isUploading && <FileUploader folders={folders} initialFolderId={selectedFolderId} onUpload={handleUpload} onClose={() => setIsUploading(false)} lang={lang} />}
     </div>
   );
 };
@@ -561,11 +521,7 @@ const App: React.FC = () => {
 const NavItem: React.FC<{ icon: React.ReactNode, label: string, active: boolean, onClick: () => void, collapsed: boolean }> = ({ icon, label, active, onClick, collapsed }) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-sm transition-all ${
-      active 
-      ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-200' 
-      : 'text-slate-600 hover:bg-slate-100 font-medium'
-    }`}
+    className={`w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-sm transition-all ${active ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-200' : 'text-slate-600 hover:bg-slate-100 font-medium'}`}
     title={collapsed ? label : undefined}
   >
     <div className="shrink-0">{icon}</div>

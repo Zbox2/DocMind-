@@ -1,8 +1,8 @@
+
 import React from 'react';
 import { FileType, Document, Folder, User, AuditLog } from './types';
 import { FileText, FileSpreadsheet, FileImage, FileCode, Folder as FolderIcon } from 'lucide-react';
 
-// Added missing status property to MOCK_USER
 export const MOCK_USER: User = {
   id: 'u1',
   name: 'Alex Rivera',
@@ -37,6 +37,7 @@ export const MOCK_DOCS: Document[] = [
     tags: ['Strategy', 'Q4'],
     isStarred: true,
     isTrashed: false,
+    previewContent: "STRATEGIC PLAN 2024 - QUARTER 4\n\nObjective: Market dominance in the EMEA region.\nGoals:\n1. Increase enterprise retention by 15%.\n2. Launch AI-native search capabilities.\n3. Expand Kebele-level support systems.\n\nRisk Assessment: Regulatory compliance in emerging markets is the primary bottleneck."
   },
   {
     id: 'd2',
@@ -53,6 +54,24 @@ export const MOCK_DOCS: Document[] = [
     tags: ['Legal', 'HR'],
     isStarred: false,
     isTrashed: false,
+    previewContent: "EMPLOYMENT AGREEMENT\n\nThis agreement is made between DocuMind Pro and the Employee.\n\nSection 1: Responsibilities\nThe Employee shall perform duties as outlined in the Job Description.\n\nSection 2: Compensation\nSalary shall be paid on the 25th of each month."
+  },
+  {
+    id: 'd4',
+    name: 'Site_Inspection_North.jpg',
+    type: FileType.IMG,
+    ownerId: 'u1',
+    folderId: 'kebele-1',
+    lastModified: '2024-03-22T11:20:00Z',
+    size: '1.8 MB',
+    currentVersion: 1,
+    versions: [
+      { id: 'v1_d4', versionNumber: 1, updatedAt: '2024-03-22T11:20:00Z', author: 'Field Agent', changeNote: 'Initial capture', size: '1.8 MB' },
+    ],
+    tags: ['Inspection', 'Field'],
+    isStarred: false,
+    isTrashed: false,
+    previewUrl: 'https://images.unsplash.com/photo-1541888941259-7927394602ee?auto=format&fit=crop&q=80&w=1200'
   },
   {
     id: 'd3',
@@ -69,6 +88,7 @@ export const MOCK_DOCS: Document[] = [
     tags: ['Finance', '2024'],
     isStarred: true,
     isTrashed: false,
+    previewContent: "| Month | Projected | Actual |\n|-------|-----------|--------|\n| Jan   | $120k      | $125k   |\n| Feb   | $135k      | $130k   |\n| Mar   | $150k      | $155k   |"
   }
 ];
 

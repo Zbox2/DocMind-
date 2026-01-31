@@ -8,7 +8,6 @@ const express = require('express');
 const sql = require('mssql');
 const cors = require('cors');
 const multer = require('multer');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -27,6 +26,9 @@ const dbConfig = {
     }
 };
 
+// Use a connection pool to handle requests reliably
+let poolPromise = sql.connect(dbConfig);
+
 // File Upload Configuration
 const storage = multer.diskStorage({
     destination: './uploads/',
@@ -36,42 +38,40 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Database Connection
-async function connectDB() {
-    try {
-        await sql.connect(dbConfig);
-        console.log('Connected to MS SQL Server');
-    } catch (err) {
-        console.error('SQL Connection Error:', err);
-    }
-}
-
 // Routes
 // 1. Get All Documents
 app.get('/api/documents', async (req, res) => {
     try {
-        const result = await sql.query`SELECT * FROM Documents WHERE IsTrashed = 0`;
+        const pool = await poolPromise;
+        const result = await pool.request().query('SELECT * FROM Documents WHERE IsTrashed = 0');
         res.json(result.recordset);
     } catch (err) {
+        console.error('GET Documents Error:', err);
         res.status(500).send(err.message);
     }
 });
 
 // 2. Upload Document & Save Metadata
 app.post('/api/documents', upload.array('files'), async (req, res) => {
-    const { name, contractNumber, ownerId, folderId, size } = req.body;
+    const { id, name, contractNumber, ownerId, folderId, size } = req.body;
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await poolPromise;
         await pool.request()
+            .input('ID', sql.NVarChar, id)
             .input('Name', sql.NVarChar, name)
             .input('ContractNumber', sql.NVarChar, contractNumber)
-            .input('OwnerID', sql.UniqueIdentifier, ownerId)
+            .input('OwnerID', sql.NVarChar, ownerId)
+            .input('FolderID', sql.NVarChar, folderId)
             .input('Size', sql.NVarChar, size)
-            .query(`INSERT INTO Documents (Name, ContractNumber, OwnerID, Size) 
-                    VALUES (@Name, @ContractNumber, @OwnerID, @Size)`);
+            .query(`
+                IF NOT EXISTS (SELECT 1 FROM Documents WHERE ID = @ID)
+                INSERT INTO Documents (ID, Name, ContractNumber, OwnerID, FolderID, Size) 
+                VALUES (@ID, @Name, @ContractNumber, @OwnerID, @FolderID, @Size)
+            `);
         
-        res.status(201).json({ message: 'Document registered in SQL Server' });
+        res.status(201).json({ message: 'Document synchronized successfully' });
     } catch (err) {
+        console.error('POST Document Error:', err);
         res.status(500).send(err.message);
     }
 });
@@ -81,15 +81,28 @@ app.patch('/api/documents/:id', async (req, res) => {
     const { id } = req.params;
     const { isStarred, isTrashed } = req.body;
     try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('ID', sql.UniqueIdentifier, id)
-            .input('IsStarred', sql.Bit, isStarred)
-            .input('IsTrashed', sql.Bit, isTrashed)
-            .query(`UPDATE Documents SET IsStarred = @IsStarred, IsTrashed = @IsTrashed 
-                    WHERE ID = @ID`);
-        res.json({ message: 'Updated' });
+        const pool = await poolPromise;
+        const request = pool.request().input('ID', sql.NVarChar, id);
+        
+        let query = 'UPDATE Documents SET ';
+        const updates = [];
+        if (isStarred !== undefined) {
+            request.input('IsStarred', sql.Bit, isStarred);
+            updates.push('IsStarred = @IsStarred');
+        }
+        if (isTrashed !== undefined) {
+            request.input('IsTrashed', sql.Bit, isTrashed);
+            updates.push('IsTrashed = @IsTrashed');
+        }
+        
+        if (updates.length === 0) return res.json({ message: 'No changes provided' });
+        
+        query += updates.join(', ') + ' WHERE ID = @ID';
+        await request.query(query);
+        
+        res.json({ message: 'Updated successfully' });
     } catch (err) {
+        console.error('PATCH Document Error:', err);
         res.status(500).send(err.message);
     }
 });
@@ -98,5 +111,4 @@ app.patch('/api/documents/:id', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Bridge API running on port ${PORT}`);
-    connectDB();
 });
