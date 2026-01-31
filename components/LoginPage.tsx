@@ -34,7 +34,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, error: externalError, la
           <div className="mx-auto h-16 w-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg mb-4">
             <Database size={32} />
           </div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">DocuMind Pro</h2>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tight">YTWSE DMS</h2>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

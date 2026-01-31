@@ -267,7 +267,7 @@ const App: React.FC = () => {
     <div className="h-screen w-full flex items-center justify-center bg-white">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Booting DocuMind...</p>
+        <p className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Booting YTWSE DMS...</p>
       </div>
     </div>
   );
@@ -285,7 +285,7 @@ const App: React.FC = () => {
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-100">
             <Database size={18} />
           </div>
-          {sidebarOpen && <span className="font-black text-lg tracking-tight">DocuMind</span>}
+          {sidebarOpen && <span className="font-black text-lg tracking-tight">YTWSE DMS</span>}
         </div>
 
         {/* Kebele Dropdown Switcher */}

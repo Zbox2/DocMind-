@@ -1,6 +1,6 @@
 {
-  "name": "DocuMind Pro",
-  "short_name": "DocuMind",
+  "name": "YTWSE Document Management System",
+  "short_name": "YTWSE DMS",
   "description": "A high-fidelity, Offline-First Document Management System featuring local persistence and version control.",
   "icons": [
     {
