@@ -14,9 +14,10 @@ interface DocumentPreviewProps {
   doc: Document;
   onClose: () => void;
   lang: Language;
+  autoPrint?: boolean;
 }
 
-const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang }) => {
+const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang, autoPrint = false }) => {
   const [zoom, setZoom] = useState(100);
   const [showAI, setShowAI] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
@@ -34,6 +35,16 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang })
   const handlePrint = () => {
     window.print();
   };
+
+  useEffect(() => {
+    if (autoPrint) {
+      // Small timeout to ensure the modal content is rendered before print dialog appears
+      const timer = setTimeout(() => {
+        window.print();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -67,7 +78,6 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang })
     <div className="fixed inset-0 z-[100] flex flex-col bg-slate-900/95 backdrop-blur-md animate-in fade-in duration-300 overflow-hidden">
       <style>{`
         @media print {
-          /* Hide everything except the print container */
           body * {
             visibility: hidden;
           }
@@ -79,28 +89,26 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang })
             left: 0;
             top: 0;
             width: 100%;
-            height: auto;
             background: white !important;
             padding: 0 !important;
             margin: 0 !important;
           }
-          /* Reset transforms for print */
           #print-area > div {
             transform: none !important;
             width: 100% !important;
-            max-width: none !important;
+            max-width: 100% !important;
             box-shadow: none !important;
             border: none !important;
-            padding: 2rem !important;
+            margin: 0 !important;
+            padding: 1cm !important;
+          }
+          .no-print {
+            display: none !important;
           }
           pre {
             white-space: pre-wrap !important;
-            word-wrap: break-word !important;
-            font-size: 12pt !important;
-          }
-          img {
-            max-width: 100% !important;
-            height: auto !important;
+            font-size: 11pt !important;
+            color: black !important;
           }
         }
       `}</style>
@@ -189,7 +197,6 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang })
                 )}
               </div>
 
-              {/* Mock Page Indicator */}
               <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-slate-900/80 text-white rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md border border-white/10 no-print">
                 <button className="hover:text-blue-400 transition-colors"><ChevronLeft size={16} /></button>
                 <span>Page 1 of 1</span>
@@ -219,7 +226,6 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang })
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              {/* Quick Actions */}
               {!summary && chatHistory.length === 0 && (
                 <div className="space-y-4">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quick Actions</p>
@@ -236,19 +242,9 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang })
                       <p className="text-[10px] text-slate-400">Generate 3 key takeaways</p>
                     </div>
                   </button>
-                  <button className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-3 hover:border-emerald-400 hover:bg-emerald-50 transition-all text-left group">
-                    <div className="p-2 bg-white rounded-xl shadow-sm group-hover:bg-emerald-100 group-hover:text-emerald-600">
-                      <Quote size={18} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">{lang === 'en' ? 'Extract Key Info' : 'ዋና ዋና መረጃዎችን አውጣ'}</p>
-                      <p className="text-[10px] text-slate-400">Dates, Entities, and Figures</p>
-                    </div>
-                  </button>
                 </div>
               )}
 
-              {/* Summary Section */}
               {summary && (
                 <div className="p-5 bg-blue-50 border border-blue-100 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-center gap-2 text-blue-600">
@@ -261,7 +257,6 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang })
                 </div>
               )}
 
-              {/* Chat History */}
               <div className="space-y-4">
                 {chatHistory.map((msg, i) => (
                   <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -285,7 +280,6 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, onClose, lang })
               </div>
             </div>
 
-            {/* AI Chat Input */}
             <div className="p-4 border-t border-slate-100 bg-white">
               <div className="relative">
                 <input 

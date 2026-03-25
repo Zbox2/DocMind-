@@ -12,38 +12,28 @@ require('dotenv').config();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased limit for Base64 file uploads
 
 // SQL Server Configuration
 const dbConfig = {
     user: process.env.DB_USER || 'sa',
     password: process.env.DB_PASSWORD || 'YourStrongPassword',
     server: process.env.DB_SERVER || 'localhost',
-    database: process.env.DB_NAME || 'DocuMind',
+    database: process.env.DB_NAME || 'YTWSE_DMS',
     options: {
         encrypt: true,
-        trustServerCertificate: true // For local development
+        trustServerCertificate: true
     }
 };
 
-// Use a connection pool to handle requests reliably
 let poolPromise = sql.connect(dbConfig);
 
-// File Upload Configuration
-const storage = multer.diskStorage({
-    destination: './uploads/',
-    filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
-    }
-});
-const upload = multer({ storage });
-
 // Routes
-// 1. Get All Documents
+// 1. Get All Documents (Including Base64 data for offline-first hydration)
 app.get('/api/documents', async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.request().query('SELECT * FROM Documents WHERE IsTrashed = 0');
+        const result = await pool.request().query('SELECT * FROM Documents WHERE IsTrashed = 0 ORDER BY LastModified DESC');
         res.json(result.recordset);
     } catch (err) {
         console.error('GET Documents Error:', err);
@@ -51,25 +41,29 @@ app.get('/api/documents', async (req, res) => {
     }
 });
 
-// 2. Upload Document & Save Metadata
-app.post('/api/documents', upload.array('files'), async (req, res) => {
-    const { id, name, contractNumber, ownerId, folderId, size } = req.body;
+// 2. Upload Document & Save Full Metadata + File Data
+app.post('/api/documents', async (req, res) => {
+    const { id, name, contractNumber, ownerId, folderId, size, type, fileData } = req.body;
     try {
         const pool = await poolPromise;
         await pool.request()
             .input('ID', sql.NVarChar, id)
             .input('Name', sql.NVarChar, name)
             .input('ContractNumber', sql.NVarChar, contractNumber)
+            .input('Type', sql.NVarChar, type)
             .input('OwnerID', sql.NVarChar, ownerId)
             .input('FolderID', sql.NVarChar, folderId)
             .input('Size', sql.NVarChar, size)
+            .input('FileData', sql.NVarChar(sql.MAX), fileData)
             .query(`
                 IF NOT EXISTS (SELECT 1 FROM Documents WHERE ID = @ID)
-                INSERT INTO Documents (ID, Name, ContractNumber, OwnerID, FolderID, Size) 
-                VALUES (@ID, @Name, @ContractNumber, @OwnerID, @FolderID, @Size)
+                INSERT INTO Documents (ID, Name, ContractNumber, Type, OwnerID, FolderID, Size, FileData) 
+                VALUES (@ID, @Name, @ContractNumber, @Type, @OwnerID, @FolderID, @Size, @FileData)
+                ELSE
+                UPDATE Documents SET FileData = @FileData, LastModified = GETDATE() WHERE ID = @ID
             `);
         
-        res.status(201).json({ message: 'Document synchronized successfully' });
+        res.status(201).json({ message: 'Document synchronized to SQL Server successfully' });
     } catch (err) {
         console.error('POST Document Error:', err);
         res.status(500).send(err.message);

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Document, FileType } from '../types';
 import { getFileIcon } from '../constants';
-import { Download, History, Share2, Trash2, Info, User, Calendar, Database, Shield, Pencil, Check, X as CloseIcon, Hash, Eye, Maximize } from 'lucide-react';
+import { Download, History, Share2, Trash2, Info, User, Calendar, Database, Shield, Pencil, Check, X as CloseIcon, Hash, Eye, Maximize, Printer } from 'lucide-react';
 import { Language, t } from '../translations';
 
 interface Props {
@@ -10,10 +10,11 @@ interface Props {
   onRename: (id: string, newName: string) => void;
   onTrash: () => void;
   onPreview: () => void;
+  onPrint: () => void;
   lang: Language;
 }
 
-const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, onPreview, lang }) => {
+const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, onPreview, onPrint, lang }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [tempName, setTempName] = useState(doc.name);
 
@@ -49,7 +50,6 @@ const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, onPreview, l
             </div>
           ) : (
             <div className="inline-flex p-6 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
-              {/* Fix: Cast icon element to ReactElement<any> to allow setting 'size' via cloneElement */}
               {React.cloneElement(getFileIcon(doc.type) as React.ReactElement<any>, { size: 32 })}
             </div>
           )}
@@ -94,6 +94,7 @@ const DocumentDetails: React.FC<Props> = ({ doc, onRename, onTrash, onPreview, l
         
         <div className="flex items-center justify-center gap-2 pt-2">
           <ActionButton icon={<Eye size={18} />} label="Preview" onClick={onPreview} />
+          <ActionButton icon={<Printer size={18} />} label="Print" onClick={onPrint} />
           <ActionButton icon={<Download size={18} />} label={t(lang, 'download')} />
           <ActionButton icon={<Share2 size={18} />} label={t(lang, 'share')} />
           <ActionButton icon={<Trash2 size={18} />} label={t(lang, 'delete')} variant="danger" onClick={onTrash} />

@@ -24,6 +24,7 @@ export interface DocumentVersion {
   author: string;
   changeNote: string;
   size: string;
+  fileData?: string; // Base64 encoded file content
 }
 
 export interface Document {
@@ -42,6 +43,7 @@ export interface Document {
   contractNumber?: string;
   previewUrl?: string;
   previewContent?: string;
+  fileData?: string; // Base64 encoded file content for the current version
 }
 
 export interface Folder {
@@ -58,4 +60,9 @@ export interface AuditLog {
   action: 'Created' | 'Updated' | 'Deleted' | 'Shared' | 'Downloaded' | 'Previewed';
   user: string;
   timestamp: string;
+}
+
+export interface SystemSetting {
+  id: string;
+  value: any;
 }

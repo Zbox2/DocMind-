@@ -1,48 +1,45 @@
 
 import { Document, FileType } from '../types';
 
-const API_BASE = '/api'; // This works via the IIS Reverse Proxy defined in web.config
+const API_BASE = '/api';
 
 export const apiService = {
   async getDocuments(): Promise<Document[]> {
     try {
       const response = await fetch(`${API_BASE}/documents`);
       
-      // Handle cases where the Bridge API might not be configured yet
       if (response.status === 404) {
-        console.warn('SQL Bridge API not found at /api/documents. Ensure IIS and Node.js bridge are running.');
+        console.warn('SQL Bridge API not found. Check IIS Proxy settings.');
         return [];
       }
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`SQL Sync Error (${response.status}): ${errorText || 'Unknown error'}`);
+        throw new Error(`SQL Fetch Error: ${response.status}`);
       }
 
       return await response.json();
     } catch (error) {
-      // Don't throw for simple connection errors, just log and return empty
       console.error('SQL Connection failed:', error);
       return [];
     }
   },
 
-  async uploadDocument(doc: Document, files: File[]): Promise<void> {
-    const formData = new FormData();
-    formData.append('id', doc.id);
-    formData.append('name', doc.name);
-    formData.append('contractNumber', doc.contractNumber || '');
-    formData.append('ownerId', doc.ownerId);
-    formData.append('folderId', doc.folderId || '');
-    formData.append('size', doc.size);
-    
-    // Append actual files if provided
-    files.forEach(file => formData.append('files', file));
-
+  async uploadDocument(doc: Document): Promise<void> {
     try {
+      // Sending as JSON to simplify Base64 handling on the SQL Server Bridge
       const response = await fetch(`${API_BASE}/documents`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: doc.id,
+          name: doc.name,
+          contractNumber: doc.contractNumber || '',
+          type: doc.type,
+          ownerId: doc.ownerId,
+          folderId: doc.folderId || '',
+          size: doc.size,
+          fileData: doc.fileData // This contains the Base64 string
+        }),
       });
 
       if (!response.ok) {

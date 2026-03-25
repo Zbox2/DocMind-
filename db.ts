@@ -1,8 +1,8 @@
 
-import { Document, Folder, AuditLog, User } from './types';
+import { Document, Folder, AuditLog, User, SystemSetting } from './types';
 
-const DB_NAME = 'DocuMindOfflineDB';
-const DB_VERSION = 2; // Incremented version for users store
+const DB_NAME = 'YTWSE_DMS_OfflineDB';
+const DB_VERSION = 3;
 
 export class OfflineDB {
   private db: IDBDatabase | null = null;
@@ -13,18 +13,12 @@ export class OfflineDB {
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains('documents')) {
-          db.createObjectStore('documents', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('folders')) {
-          db.createObjectStore('folders', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('auditLogs')) {
-          db.createObjectStore('auditLogs', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('users')) {
-          db.createObjectStore('users', { keyPath: 'id' });
-        }
+        const stores = ['documents', 'folders', 'auditLogs', 'users', 'settings'];
+        stores.forEach(name => {
+          if (!db.objectStoreNames.contains(name)) {
+            db.createObjectStore(name, { keyPath: 'id' });
+          }
+        });
       };
 
       request.onsuccess = () => {
@@ -51,6 +45,15 @@ export class OfflineDB {
     });
   }
 
+  async getById<T>(storeName: string, id: string): Promise<T | null> {
+    const store = await this.getStore(storeName, 'readonly');
+    return new Promise((resolve, reject) => {
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   async save<T>(storeName: string, item: T): Promise<void> {
     const store = await this.getStore(storeName, 'readwrite');
     return new Promise((resolve, reject) => {
@@ -70,10 +73,53 @@ export class OfflineDB {
   }
 
   async clearAll(): Promise<void> {
-    const stores = ['documents', 'folders', 'auditLogs', 'users'];
+    const stores = ['documents', 'folders', 'auditLogs', 'users', 'settings'];
     for (const name of stores) {
       const store = await this.getStore(name, 'readwrite');
-      store.clear();
+      await new Promise<void>((resolve, reject) => {
+        const req = store.clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+  }
+
+  async exportDatabase(): Promise<string> {
+    const data = {
+      documents: await this.getAll<Document>('documents'),
+      folders: await this.getAll<Folder>('folders'),
+      auditLogs: await this.getAll<AuditLog>('auditLogs'),
+      users: await this.getAll<User>('users'),
+      settings: await this.getAll<SystemSetting>('settings'),
+      exportDate: new Date().toISOString(),
+      system: 'YTWSE-DMS',
+      version: DB_VERSION
+    };
+    // Update last backup timestamp
+    await this.save('settings', { id: 'last_backup', value: data.exportDate });
+    return JSON.stringify(data, null, 2);
+  }
+
+  async importDatabase(jsonString: string): Promise<void> {
+    const data = JSON.parse(jsonString);
+    if (data.system !== 'YTWSE-DMS') throw new Error('Invalid backup file');
+
+    await this.clearAll();
+
+    const collections = {
+      documents: data.documents,
+      folders: data.folders,
+      auditLogs: data.auditLogs,
+      users: data.users,
+      settings: data.settings
+    };
+
+    for (const [storeName, items] of Object.entries(collections)) {
+      if (items && Array.isArray(items)) {
+        for (const item of items) {
+          await this.save(storeName, item);
+        }
+      }
     }
   }
 }

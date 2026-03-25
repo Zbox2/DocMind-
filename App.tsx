@@ -29,7 +29,8 @@ import {
   ChevronDown,
   ChevronRight,
   MapPin,
-  CheckCircle2
+  CheckCircle2,
+  Printer
 } from 'lucide-react';
 import { MOCK_DOCS, MOCK_FOLDERS, MOCK_USER, MOCK_AUDIT_LOGS, getFileIcon } from './constants';
 import { Document, Folder, FileType, AuditLog, User } from './types';
@@ -56,6 +57,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [autoPrint, setAutoPrint] = useState(false);
   const [docs, setDocs] = useState<Document[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -65,10 +67,7 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
-  const [tempFolderName, setTempFolderName] = useState('');
 
-  // Close dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -79,7 +78,6 @@ const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Persist language
   useEffect(() => {
     localStorage.setItem('documind_lang', lang);
   }, [lang]);
@@ -238,29 +236,63 @@ const App: React.FC = () => {
     if (doc) await db.save('documents', doc);
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const handleUpload = async (newFiles: File[], folderId: string | null, metadata: { name: string, contractNumber: string }) => {
-    const newDocs: Document[] = newFiles.map((f, i) => ({
-      id: `new-${Date.now()}-${i}`,
-      name: metadata.name || f.name,
-      contractNumber: metadata.contractNumber,
-      type: FileType.PDF, // Simplified for brevity
-      ownerId: currentUser?.id || 'unknown',
-      folderId: folderId,
-      lastModified: new Date().toISOString(),
-      size: `${(f.size / 1024 / 1024).toFixed(1)} MB`,
-      currentVersion: 1,
-      versions: [{ id: `v1-${Date.now()}`, versionNumber: 1, updatedAt: new Date().toISOString(), author: currentUser?.name || 'User', changeNote: 'Initial upload', size: `${(f.size / 1024).toFixed(0)} KB` }],
-      tags: [],
-      isStarred: false,
-      isTrashed: false,
-    }));
+    const uploadedDocs: Document[] = [];
     
-    setDocs(prev => [...newDocs, ...prev]);
-    for (const d of newDocs) {
+    for (const [index, f] of newFiles.entries()) {
+      const base64Data = await fileToBase64(f);
+      const docType = f.type.includes('image') ? FileType.IMG : (f.type.includes('pdf') ? FileType.PDF : FileType.TXT);
+      
+      const newDoc: Document = {
+        id: `new-${Date.now()}-${index}`,
+        name: metadata.name || f.name,
+        contractNumber: metadata.contractNumber,
+        type: docType,
+        ownerId: currentUser?.id || 'unknown',
+        folderId: folderId,
+        lastModified: new Date().toISOString(),
+        size: `${(f.size / 1024 / 1024).toFixed(1)} MB`,
+        currentVersion: 1,
+        versions: [{ 
+          id: `v1-${Date.now()}`, 
+          versionNumber: 1, 
+          updatedAt: new Date().toISOString(), 
+          author: currentUser?.name || 'User', 
+          changeNote: 'Initial upload', 
+          size: `${(f.size / 1024).toFixed(0)} KB`,
+          fileData: base64Data
+        }],
+        tags: [],
+        isStarred: false,
+        isTrashed: false,
+        fileData: base64Data,
+        previewContent: docType === FileType.TXT ? "Sample text content..." : undefined,
+        previewUrl: docType === FileType.IMG ? base64Data : undefined
+      };
+      uploadedDocs.push(newDoc);
+    }
+    
+    setDocs(prev => [...uploadedDocs, ...prev]);
+    for (const d of uploadedDocs) {
       await db.save('documents', d);
-      if (isOnline) apiService.uploadDocument(d, newFiles);
+      // Fixed line 287: Removed the second argument 'newFiles' to match apiService.uploadDocument(doc: Document) signature.
+      if (isOnline) apiService.uploadDocument(d);
     }
     setIsUploading(false);
+  };
+
+  const handlePrintRequest = (doc: Document) => {
+    setPreviewDoc(doc);
+    setAutoPrint(true);
   };
 
   if (!dbReady) return (
@@ -280,7 +312,6 @@ const App: React.FC = () => {
     <div className="flex h-screen bg-white text-slate-900 overflow-hidden">
       {/* Sidebar */}
       <aside className={`bg-slate-50 border-r border-slate-200 transition-all duration-300 flex flex-col ${sidebarOpen ? 'w-64' : 'w-16'}`}>
-        {/* Logo Section */}
         <div className="p-4 flex items-center gap-3 h-16 border-b border-slate-200 shrink-0">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-100">
             <Database size={18} />
@@ -288,7 +319,6 @@ const App: React.FC = () => {
           {sidebarOpen && <span className="font-black text-lg tracking-tight">YTWSE DMS</span>}
         </div>
 
-        {/* Kebele Dropdown Switcher */}
         <div className="px-3 py-4 border-b border-slate-200/60 shrink-0" ref={dropdownRef}>
           {sidebarOpen ? (
             <div className="relative">
@@ -310,7 +340,6 @@ const App: React.FC = () => {
                 <ChevronDown size={14} className={`text-slate-400 transition-transform ${kebeleDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Floating Menu */}
               {kebeleDropdownOpen && (
                 <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top">
                   <div className="p-3 border-b border-slate-100 bg-slate-50/50">
@@ -351,9 +380,6 @@ const App: React.FC = () => {
                         {selectedFolderId === f.id && <CheckCircle2 size={14} />}
                       </button>
                     ))}
-                    {filteredKebeles.length === 0 && (
-                      <div className="p-8 text-center text-slate-400 italic text-xs">No matches found</div>
-                    )}
                   </div>
                 </div>
               )}
@@ -484,7 +510,8 @@ const App: React.FC = () => {
                         <td className="px-6 py-4 text-slate-500 font-bold">{doc.size}</td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={(e) => { e.stopPropagation(); setPreviewDoc(doc); }} className="p-2 text-slate-400 hover:text-blue-600"><Eye size={18} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); setPreviewDoc(doc); }} className="p-2 text-slate-400 hover:text-blue-600" title="Preview"><Eye size={18} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); handlePrintRequest(doc); }} className="p-2 text-slate-400 hover:text-indigo-600" title="Print"><Printer size={18} /></button>
                             <button onClick={(e) => { e.stopPropagation(); toggleStar(doc.id); }} className={`p-2 ${doc.isStarred ? 'text-amber-400' : 'text-slate-300'}`}><Star size={18} fill={doc.isStarred ? "currentColor" : "none"} /></button>
                           </div>
                         </td>
@@ -505,12 +532,26 @@ const App: React.FC = () => {
             <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">{t(lang, 'details')}</h3>
             <button onClick={() => setSelectedDoc(null)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><X size={20} /></button>
           </div>
-          <DocumentDetails doc={selectedDoc} onRename={handleRenameDoc} onTrash={() => moveToTrash(selectedDoc.id)} onPreview={() => setPreviewDoc(selectedDoc)} lang={lang} />
+          <DocumentDetails 
+            doc={selectedDoc} 
+            onRename={handleRenameDoc} 
+            onTrash={() => moveToTrash(selectedDoc.id)} 
+            onPreview={() => setPreviewDoc(selectedDoc)} 
+            onPrint={() => handlePrintRequest(selectedDoc)}
+            lang={lang} 
+          />
         </aside>
       )}
 
       {/* Preview Modal */}
-      {previewDoc && <DocumentPreview doc={previewDoc} onClose={() => setPreviewDoc(null)} lang={lang} />}
+      {previewDoc && (
+        <DocumentPreview 
+          doc={previewDoc} 
+          onClose={() => { setPreviewDoc(null); setAutoPrint(false); }} 
+          autoPrint={autoPrint}
+          lang={lang} 
+        />
+      )}
 
       {/* Upload Modal */}
       {isUploading && <FileUploader folders={folders} initialFolderId={selectedFolderId} onUpload={handleUpload} onClose={() => setIsUploading(false)} lang={lang} />}

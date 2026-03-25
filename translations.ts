@@ -50,6 +50,13 @@ export const translations = {
     cancel: "Cancel",
     create: "Create",
     lastLogin: "Last Login",
+    maintenance: "Maintenance",
+    backupRestore: "Backup & Restore",
+    exportBackup: "Export System Backup",
+    importBackup: "Restore from Backup",
+    restoreWarning: "Warning: This will overwrite all current local data. This action cannot be undone.",
+    backupSuccess: "Data restored successfully. Reloading system...",
+    selectBackupFile: "Select Backup File (.json)",
   },
   am: {
     dashboard: "ዳሽቦርድ",
@@ -99,6 +106,13 @@ export const translations = {
     cancel: "ሰርዝ",
     create: "ፍጠር",
     lastLogin: "መጨረሻ የታየው",
+    maintenance: "ጥገና",
+    backupRestore: "ምትኬ እና እነበረበት መልስ",
+    exportBackup: "የስርዓት ምትኬ ያውጡ",
+    importBackup: "ከምትኬ ይመልሱ",
+    restoreWarning: "ማስጠንቀቂያ፡ ይህ አሁን ያሉትን ሁሉንም አካባቢያዊ መረጃዎች ይተካል። ይህ ተግባር ሊቀለበስ አይችልም።",
+    backupSuccess: "መረጃው በተሳካ ሁኔታ ተመልሷል። ስርዓቱ እንደገና እየተነሳ ነው...",
+    selectBackupFile: "የምትኬ ፋይል ይምረጡ (.json)",
   }
 };
 
