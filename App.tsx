@@ -43,7 +43,7 @@ import LoginPage from './components/LoginPage';
 import UserManagement from './components/UserManagement';
 import { db } from './db';
 import { Language, t } from './translations';
-import { apiService } from './services/apiService';
+// Removed apiService import
 
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(() => (localStorage.getItem('documind_lang') as Language) || 'en');
@@ -64,7 +64,7 @@ const App: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [dbReady, setDbReady] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Removed isSyncing state
   
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -82,31 +82,7 @@ const App: React.FC = () => {
     localStorage.setItem('documind_lang', lang);
   }, [lang]);
 
-  const syncWithSQL = async () => {
-    if (!navigator.onLine) return;
-    setIsSyncing(true);
-    try {
-      const sqlDocs = await apiService.getDocuments();
-      if (sqlDocs && sqlDocs.length > 0) {
-        setDocs(prev => {
-          const merged = [...prev];
-          sqlDocs.forEach(sqlDoc => {
-            const idx = merged.findIndex(d => d.id === sqlDoc.id);
-            if (idx > -1) merged[idx] = sqlDoc;
-            else merged.unshift(sqlDoc);
-          });
-          return merged;
-        });
-        for (const doc of sqlDocs) {
-          await db.save('documents', doc);
-        }
-      }
-    } catch (err) {
-      console.warn("SQL Sync failed");
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  // Removed syncWithSQL function
 
   useEffect(() => {
     const initData = async () => {
@@ -150,7 +126,7 @@ const App: React.FC = () => {
         }
       }
       setDbReady(true);
-      if (navigator.onLine) syncWithSQL();
+      // Removed syncWithSQL call
     };
     initData();
   }, []);
@@ -214,7 +190,7 @@ const App: React.FC = () => {
     const doc = updated.find(d => d.id === id);
     if (doc) {
       await db.save('documents', doc);
-      if (isOnline) await apiService.updateDocumentStatus(id, { isStarred: doc.isStarred });
+      // Removed apiService.updateDocumentStatus call
     }
   };
 
@@ -225,7 +201,7 @@ const App: React.FC = () => {
     const doc = updated.find(d => d.id === id);
     if (doc) {
       await db.save('documents', doc);
-      if (isOnline) await apiService.updateDocumentStatus(id, { isTrashed: true });
+      // Removed apiService.updateDocumentStatus call
     }
   };
 
@@ -284,8 +260,7 @@ const App: React.FC = () => {
     setDocs(prev => [...uploadedDocs, ...prev]);
     for (const d of uploadedDocs) {
       await db.save('documents', d);
-      // Fixed line 287: Removed the second argument 'newFiles' to match apiService.uploadDocument(doc: Document) signature.
-      if (isOnline) apiService.uploadDocument(d);
+      // Removed apiService.uploadDocument call
     }
     setIsUploading(false);
   };

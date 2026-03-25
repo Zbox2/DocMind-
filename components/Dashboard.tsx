@@ -36,7 +36,7 @@ const Dashboard: React.FC<DashboardProps> = ({ docs, folders, auditLogs, user, o
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-xs font-bold border border-blue-500/30 uppercase tracking-widest">
-              <ShieldCheck size={14} /> {t(lang, 'online')}
+              <ShieldCheck size={14} /> {lang === 'en' ? 'Local Mode' : 'የአካባቢ ሁነታ'}
             </div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
               {t(lang, 'goodMorning')}, {user.name.split(' ')[0]}
@@ -69,22 +69,22 @@ const Dashboard: React.FC<DashboardProps> = ({ docs, folders, auditLogs, user, o
         />
         <MetricCard 
           label={t(lang, 'storageEff')} 
-          value="42%" 
-          trend="SQL" 
+          value="100%" 
+          trend="Local" 
           icon={<Database className="text-indigo-600" />} 
           chart={<MiniSparkline color="#4f46e5" />}
         />
         <MetricCard 
           label={t(lang, 'activeUsers')} 
-          value="24" 
-          trend="Live" 
+          value="1" 
+          trend="Single" 
           icon={<Users className="text-emerald-600" />} 
           chart={<MiniSparkline color="#10b981" />}
         />
         <MetricCard 
           label={t(lang, 'syncHealth')} 
-          value="99.9%" 
-          trend="Stable" 
+          value="100%" 
+          trend="Offline" 
           icon={<TrendingUp className="text-amber-600" />} 
           chart={<MiniSparkline color="#d97706" />}
         />
